@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Calificaciones Internacionales - Escala Española</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js para interactividad -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen" x-data="appData()" x-init="init()">
+
+    <!-- Header -->
+    <header class="bg-slate-900 text-white shadow-md border-b border-slate-800">
+        <div class="max-w-6xl mx-auto px-4 py-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 class="text-2xl font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-graduation-cap text-indigo-400"></i>
+                        Conversor de Notas Internacionales
+                    </h1>
+                    <p class="text-slate-400 text-sm mt-1">
+                        Adaptación a la Escala Española (0-10) según normativa del Ministerio (SGU / BOE)
+                    </p>
+                </div>
+                <div class="flex gap-2 text-xs">
+                    <span class="bg-indigo-950 text-indigo-300 border border-indigo-800 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
+                        <i class="fa-solid fa-book"></i> Anexo I (Tablas SGU)
+                    </span>
+                    <span class="bg-emerald-950 text-emerald-300 border border-emerald-800 px-3 py-1.5 rounded-full font-medium flex items-center gap-1.5">
+                        <i class="fa-solid fa-calculator"></i> Anexo II (Interpolación BOE)
+                    </span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-6xl mx-auto px-4 py-8">
+
+        <!-- Navigation Tabs -->
+        <div class="flex border-b border-slate-200 mb-8 bg-white rounded-t-lg p-1 shadow-sm">
+            <button @click="tab = 'calc'" :class="tab === 'calc' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'" class="flex-1 py-3 px-4 font-medium text-sm rounded-md transition-all flex items-center justify-center gap-2">
+                <i class="fa-solid fa-calculator"></i> Calculadora Individual
+            </button>
+            <button @click="tab = 'batch'" :class="tab === 'batch' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'" class="flex-1 py-3 px-4 font-medium text-sm rounded-md transition-all flex items-center justify-center gap-2">
+                <i class="fa-solid fa-file-excel"></i> Conversión por Lotes (Excel)
+            </button>
+            <button @click="tab = 'tables'" :class="tab === 'tables' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'" class="flex-1 py-3 px-4 font-medium text-sm rounded-md transition-all flex items-center justify-center gap-2">
+                <i class="fa-solid fa-table"></i> Explorador Tablas Anexo I
+            </button>
+        </div>
+
+        <!-- TAB 1: CALCULADORA INDIVIDUAL -->
+        <div x-show="tab === 'calc'" x-cloak class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Panel de Controles -->
+            <div class="lg:col-span-6 bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
+                <h2 class="text-lg font-semibold text-slate-900 border-b border-slate-100 pb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-indigo-600"></i> Parámetros de Origen
+                </h2>
+
+                <!-- Selector de País / Escala -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">País / Sistema Educativo</label>
+                    <select x-model="selectedPreset" @change="applyPreset()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2.5">
+                        <option value="france_20">Francia - Escala 0 a 20 (Tabla Oficial Anexo I)</option>
+                        <option value="portugal_20">Portugal - Escala 0 a 20 (Aprobado 10)</option>
+                        <option value="peru_20">Perú - Escala 0 a 20 (Aprobado 11)</option>
+                        <option value="venezuela_20">Venezuela - Escala 0 a 20 (Aprobado 10)</option>
+                        <option value="scale_1_10">Escala Genérica 1 a 10 (Aprobado 5 u otros)</option>
+                        <option value="scale_100">Escala Porcentual 0 a 100 (Aprobado 60)</option>
+                        <option value="custom">Personalizado (Definir límites libremente)</option>
+                    </select>
+                </div>
+
+                <!-- Selección de Motor de Cálculo -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Método de Cálculo Aplicado</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label :class="mode === 'table' ? 'border-indigo-600 bg-indigo-50/50 text-indigo-900 font-medium' : 'border-slate-200 text-slate-600 hover:bg-slate-50'" class="flex flex-col p-3 border rounded-lg cursor-pointer transition-all">
+                            <div class="flex items-center gap-2 mb-1">
+                                <input type="radio" x-model="mode" value="table" :disabled="!hasTable" class="text-indigo-600 focus:ring-indigo-500">
+                                <span class="text-xs font-bold">Tabla Anexo I (SGU)</span>
+                            </div>
+                            <span class="text-[11px] text-slate-500 leading-tight">Correspondencia empírica oficial por tramos</span>
+                        </label>
+                        
+                        <label :class="mode === 'formula' ? 'border-indigo-600 bg-indigo-50/50 text-indigo-900 font-medium' : 'border-slate-200 text-slate-600 hover:bg-slate-50'" class="flex flex-col p-3 border rounded-lg cursor-pointer transition-all">
+                            <div class="flex items-center gap-2 mb-1">
+                                <input type="radio" x-model="mode" value="formula" class="text-indigo-600 focus:ring-indigo-500">
+                                <span class="text-xs font-bold">Interpolación BOE</span>
+                            </div>
+                            <span class="text-[11px] text-slate-500 leading-tight">Fórmula matemática lineal parametrizada</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Nota Obtenida -->
+                <div class="bg-indigo-50/60 p-4 rounded-lg border border-indigo-100">
+                    <label class="block text-sm font-bold text-indigo-950 mb-1">Nota de Origen Obtenida (N<sub>O</sub>)</label>
+                    <input type="number" step="0.01" x-model.number="inputGrade" class="w-full text-xl font-bold bg-white border border-indigo-300 text-slate-900 rounded-lg p-2.5 focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+
+                <!-- Configuración de Límites de Escala -->
+                <div class="border-t border-slate-100 pt-4 space-y-3" x-show="mode === 'formula' || selectedPreset === 'custom'">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block">Límites de la Escala de Origen</span>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Mínimo Escala (M<sub>in</sub>)</label>
+                            <input type="number" step="0.1" x-model.number="scaleMin" class="w-full text-sm bg-slate-50 border border-slate-300 rounded-md p-2">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Aprobado (A<sub>O</sub>)</label>
+                            <input type="number" step="0.1" x-model.number="scalePass" class="w-full text-sm bg-slate-50 border border-slate-300 rounded-md p-2">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Máximo Escala (M<sub>O</sub>)</label>
+                            <input type="number" step="0.1" x-model.number="scaleMax" class="w-full text-sm bg-slate-50 border border-slate-300 rounded-md p-2">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel de Resultados -->
+            <div class="lg:col-span-6 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900 border-b border-slate-100 pb-3 flex items-center justify-between">
+                        <span class="flex items-center gap-2">
+                            <i class="fa-solid fa-award text-emerald-600"></i> Calificación Equivalente Oficial
+                        </span>
+                        <span class="text-xs px-2.5 py-1 rounded-full font-semibold" :class="result.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'" x-text="result.passed ? 'APROBADO' : 'SUSPENSO'"></span>
+                    </h2>
+
+                    <!-- Tarjetas con las 3 Escalas Oficiales -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 my-6">
+                        <div class="bg-slate-900 text-white p-4 rounded-xl text-center shadow-md">
+                            <div class="text-xs text-slate-400 font-medium uppercase mb-1">Escala 0–10</div>
+                            <div class="text-3xl font-extrabold text-indigo-400" x-text="result.grade10.toFixed(2)"></div>
+                            <div class="text-[11px] text-slate-400 mt-1">N<sub>E</sub> Oficial</div>
+                        </div>
+
+                        <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl text-center">
+                            <div class="text-xs text-slate-500 font-medium uppercase mb-1">Escala 1–4</div>
+                            <div class="text-2xl font-bold text-slate-800" x-text="result.grade4.toFixed(2)"></div>
+                            <div class="text-[11px] text-slate-500 mt-1">Ponderación R.D.</div>
+                        </div>
+
+                        <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl text-center">
+                            <div class="text-xs text-slate-500 font-medium uppercase mb-1">Cualificación</div>
+                            <div class="text-sm font-bold text-slate-900 mt-2" x-text="result.literal"></div>
+                            <div class="text-[11px] text-slate-500 mt-0.5">Literal</div>
+                        </div>
+                    </div>
+
+                    <!-- Explicación Matemática / Fórmulas -->
+                    <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 text-xs text-slate-700 space-y-2">
+                        <div class="font-bold text-slate-900 flex items-center gap-1.5">
+                            <i class="fa-solid fa-square-root-variable text-indigo-600"></i> Detalle del Procedimiento:
+                        </div>
+                        
+                        <template x-if="mode === 'table'">
+                            <div>
+                                <p class="text-slate-600">
+                                    Aplicando la correspondencia directa de la <strong>Tabla Oficial del Anexo I de la SGU</strong> para <span x-text="presetNames[selectedPreset]"></span>.
+                                </p>
+                                <div class="mt-2 font-mono bg-white p-2 rounded border border-slate-200 text-[11px]">
+                                    N<sub>O</sub> = <span x-text="inputGrade"></span> &rarr; N<sub>E (0-10)</sub> = <strong x-text="result.grade10.toFixed(2)"></strong>
+                                </div>
+                            </div>
+                        </template>
+
+                        <template x-if="mode === 'formula'">
+                            <div class="space-y-1.5">
+                                <p class="text-slate-600">Fórmula de interpolación lineal por tramos de aprobado (BOE):</p>
+                                <div class="font-mono bg-white p-2 rounded border border-slate-200 text-[11px] text-slate-800">
+                                    N<sub>E</sub> = 5 + 5 &times; [(N<sub>O</sub> - A<sub>O</sub>) / (M<sub>O</sub> - A<sub>O</sub>)]
+                                </div>
+                                <div class="font-mono text-[11px] text-slate-600">
+                                    N<sub>E</sub> = 5 + 5 &times; [(<span x-text="inputGrade"></span> - <span x-text="scalePass"></span>) / (<span x-text="scaleMax"></span> - <span x-text="scalePass"></span>)] = <strong x-text="result.grade10.toFixed(2)"></strong>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <div class="text-[11px] text-slate-400 border-t border-slate-100 pt-3 mt-4 flex justify-between items-center">
+                    <span>Secretaría General de Universidades</span>
+                    <span>Actualizado BOE / SGU</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: CONVERSIÓN POR LOTES (EXCEL) -->
+        <div x-show="tab === 'batch'" x-cloak class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-6">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-900 mb-1">Conversión Masiva desde Excel / Google Sheets</h2>
+                <p class="text-sm text-slate-500">Pega la lista de notas de tus alumnos (una nota por línea) para calcular las equivalencias de forma simultánea.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                <div class="md:col-span-5 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Listado de Notas de Origen</label>
+                        <textarea x-model="batchInput" rows="10" placeholder="Pega aquí las notas, p. ej.:&#10;14.78&#10;15.00&#10;17.39&#10;12.50" class="w-full font-mono text-sm bg-slate-50 border border-slate-300 rounded-lg p-3 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    </div>
+                    <button @click="processBatch()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-bolt"></i> Procesar Lista de Calificaciones
+                    </button>
+                </div>
+
+                <div class="md:col-span-7 flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Resultados Convertidos</h3>
+                            <button @click="exportCSV()" x-show="batchResults.length > 0" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded font-medium transition-all flex items-center gap-1">
+                                <i class="fa-solid fa-file-csv"></i> Exportar a CSV
+                            </button>
+                        </div>
+
+                        <div class="border border-slate-200 rounded-lg overflow-hidden max-h-80 overflow-y-auto bg-slate-50">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 sticky top-0">
+                                    <tr>
+                                        <th class="p-2.5">#</th>
+                                        <th class="p-2.5">Nota Origen</th>
+                                        <th class="p-2.5">Escala 5–10</th>
+                                        <th class="p-2.5">Escala 1–4</th>
+                                        <th class="p-2.5">Literal</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200 bg-white font-mono">
+                                    <template x-for="(item, index) in batchResults" :key="index">
+                                        <tr class="hover:bg-slate-50">
+                                            <td class="p-2.5 text-slate-400" x-text="index + 1"></td>
+                                            <td class="p-2.5 font-bold text-slate-800" x-text="item.original"></td>
+                                            <td class="p-2.5 font-bold text-indigo-600" x-text="item.grade10.toFixed(2)"></td>
+                                            <td class="p-2.5 text-slate-700" x-text="item.grade4.toFixed(2)"></td>
+                                            <td class="p-2.5 font-sans font-medium" x-text="item.literal"></td>
+                                        </tr>
+                                    </template>
+                                    <template x-if="batchResults.length === 0">
+                                        <tr>
+                                            <td colspan="5" class="p-8 text-center text-slate-400 font-sans">
+                                                Introduce un listado de notas y pulsa "Procesar Lista" para ver la conversión.
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: EXPLORADOR DE TABLAS ANEXO I -->
+        <div x-show="tab === 'tables'" x-cloak class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-slate-900">Tabla Oficial de Correspondencia SGU (Francia 0–20)</h2>
+                    <p class="text-sm text-slate-500">Muestra los valores de la tabla del Anexo I para Francia (0–20).</p>
+                </div>
+                <input type="text" x-model="tableFilter" placeholder="Filtrar por nota..." class="text-sm bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5">
+            </div>
+
+            <div class="border border-slate-200 rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-900 text-white font-bold sticky top-0">
+                        <tr>
+                            <th class="p-3">Nota País Origen</th>
+                            <th class="p-3">Equivalente Española (5–10)</th>
+                            <th class="p-3">Equivalente Española (1–4)</th>
+                            <th class="p-3">Literal Oficial</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 font-mono">
+                        <template x-for="row in filteredFranceTable" :key="row.orig">
+                            <tr class="hover:bg-indigo-50/50 transition-colors">
+                                <td class="p-3 font-bold text-slate-900" x-text="row.orig.toFixed(2)"></td>
+                                <td class="p-3 font-bold text-indigo-600" x-text="row.g10.toFixed(2)"></td>
+                                <td class="p-3 text-slate-700" x-text="row.g4.toFixed(2)"></td>
+                                <td class="p-3 font-sans font-semibold text-slate-800" x-text="row.lit"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Script Lógico -->
+    <script>
+        function appData() {
+            return {
+                tab: 'calc',
+                mode: 'table',
+                selectedPreset: 'france_20',
+                inputGrade: 15.00,
+                scaleMin: 0,
+                scalePass: 10,
+                scaleMax: 20,
+                hasTable: true,
+                batchInput: '14.78\n14.80\n15.00\n17.39',
+                batchResults: [],
+                tableFilter: '',
+                presetNames: {
+                    france_20: 'Francia (0-20, Anexo I)',
+                    portugal_20: 'Portugal (0-20)',
+                    peru_20: 'Perú (0-20)',
+                    venezuela_20: 'Venezuela (0-20)',
+                    scale_1_10: 'Escala Genérica (1-10)',
+                    scale_100: 'Escala Porcentual (0-100)',
+                    custom: 'Personalizada'
+                },
+
+                // Tabla oficial Francia 0-20 (Anexo I SGU)
+                franceTable: [
+                    { orig: 10.00, g10: 5.00, g4: 1.00, lit: 'APROBADO' },
+                    { orig: 11.00, g10: 5.50, g4: 1.00, lit: 'APROBADO' },
+                    { orig: 12.00, g10: 6.00, g4: 1.00, lit: 'APROBADO' },
+                    { orig: 13.00, g10: 6.50, g4: 1.00, lit: 'APROBADO' },
+                    { orig: 14.00, g10: 7.00, g4: 2.00, lit: 'NOTABLE' },
+                    { orig: 14.78, g10: 7.52, g4: 2.00, lit: 'NOTABLE' },
+                    { orig: 14.80, g10: 7.53, g4: 2.00, lit: 'NOTABLE' },
+                    { orig: 15.00, g10: 7.66, g4: 2.00, lit: 'NOTABLE' },
+                    { orig: 16.00, g10: 8.30, g4: 2.00, lit: 'NOTABLE' },
+                    { orig: 17.00, g10: 8.90, g4: 2.00, lit: 'NOTABLE' },
+                    { orig: 17.39, g10: 9.13, g4: 3.00, lit: 'SOBRESALIENTE' },
+                    { orig: 18.00, g10: 9.50, g4: 3.00, lit: 'SOBRESALIENTE' },
+                    { orig: 19.00, g10: 9.80, g4: 4.00, lit: 'MATRÍCULA DE HONOR' },
+                    { orig: 20.00, g10: 10.00, g4: 4.00, lit: 'MATRÍCULA DE HONOR' }
+                ],
+
+                init() {
+                    this.applyPreset();
+                },
+
+                applyPreset() {
+                    if (this.selectedPreset === 'france_20') {
+                        this.scaleMin = 0; this.scalePass = 10; this.scaleMax = 20;
+                        this.hasTable = true;
+                        this.mode = 'table';
+                    } else if (this.selectedPreset === 'portugal_20') {
+                        this.scaleMin = 0; this.scalePass = 10; this.scaleMax = 20;
+                        this.hasTable = false; this.mode = 'formula';
+                    } else if (this.selectedPreset === 'peru_20') {
+                        this.scaleMin = 0; this.scalePass = 11; this.scaleMax = 20;
+                        this.hasTable = false; this.mode = 'formula';
+                    } else if (this.selectedPreset === 'venezuela_20') {
+                        this.scaleMin = 0; this.scalePass = 10; this.scaleMax = 20;
+                        this.hasTable = false; this.mode = 'formula';
+                    } else if (this.selectedPreset === 'scale_1_10') {
+                        this.scaleMin = 1; this.scalePass = 5; this.scaleMax = 10;
+                        this.hasTable = false; this.mode = 'formula';
+                    } else if (this.selectedPreset === 'scale_100') {
+                        this.scaleMin = 0; this.scalePass = 60; this.scaleMax = 100;
+                        this.hasTable = false; this.mode = 'formula';
+                    } else {
+                        this.hasTable = false; this.mode = 'formula';
+                    }
+                },
+
+                get result() {
+                    return this.calculateSingle(this.inputGrade);
+                },
+
+                calculateSingle(grade) {
+                    let g10 = 0;
+                    let passed = grade >= this.scalePass;
+
+                    if (this.mode === 'table' && this.selectedPreset === 'france_20') {
+                        g10 = this.lookupTable(grade, this.franceTable);
+                    } else {
+                        // Formula BOE
+                        if (grade < this.scalePass) {
+                            // Suspenso: escala proporcional 0 a 4.99
+                            let range = this.scalePass - this.scaleMin;
+                            g10 = range > 0 ? ((grade - this.scaleMin) / range) * 4.99 : 0;
+                        } else {
+                            // Aprobado: formula BOE N_E = 5 + 5 * (N_O - A_O)/(M_O - A_O)
+                            let range = this.scaleMax - this.scalePass;
+                            g10 = range > 0 ? 5 + 5 * ((grade - this.scalePass) / range) : 5;
+                        }
+                    }
+
+                    g10 = Math.max(0, Math.min(10, g10));
+
+                    // Escala 1-4 y Literal
+                    let g4 = 1.0;
+                    let literal = 'SUSPENSO';
+
+                    if (g10 >= 9.0) {
+                        g4 = g10 >= 9.8 ? 4.0 : 3.0;
+                        literal = g10 >= 9.8 ? 'MATRÍCULA DE HONOR' : 'SOBRESALIENTE';
+                    } else if (g10 >= 7.0) {
+                        g4 = 2.0;
+                        literal = 'NOTABLE';
+                    } else if (g10 >= 5.0) {
+                        g4 = 1.0;
+                        literal = 'APROBADO';
+                    }
+
+                    return { grade10: g10, grade4: g4, literal: literal, passed: g10 >= 5.0 };
+                },
+
+                lookupTable(grade, table) {
+                    let exact = table.find(r => Math.abs(r.orig - grade) < 0.001);
+                    if (exact) return exact.g10;
+
+                    if (grade <= table[0].orig) return table[0].g10;
+                    if (grade >= table[table.length - 1].orig) return table[table.length - 1].g10;
+
+                    for (let i = 0; i < table.length - 1; i++) {
+                        if (grade >= table[i].orig && grade <= table[i+1].orig) {
+                            let t = (grade - table[i].orig) / (table[i+1].orig - table[i].orig);
+                            return table[i].g10 + t * (table[i+1].g10 - table[i].g10);
+                        }
+                    }
+                    return 5.0;
+                },
+
+                processBatch() {
+                    let lines = this.batchInput.split('\n');
+                    this.batchResults = [];
+                    lines.forEach(line => {
+                        let val = parseFloat(line.trim().replace(',', '.'));
+                        if (!isNaN(val)) {
+                            let res = this.calculateSingle(val);
+                            this.batchResults.push({
+                                original: val,
+                                grade10: res.grade10,
+                                grade4: res.grade4,
+                                literal: res.literal
+                            });
+                        }
+                    });
+                },
+
+                exportCSV() {
+                    let csv = "Nota_Origen,Escala_5_10,Escala_1_4,Literal\n";
+                    this.batchResults.forEach(r => {
+                        csv += `${r.original},${r.grade10.toFixed(2)},${r.grade4.toFixed(2)},"${r.literal}"\n`;
+                    });
+                    let blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    let link = document.createElement("a");
+                    link.href = URL.createObjectURL(blob);
+                    link.setAttribute("download", "conversion_notas_espanolas.csv");
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                },
+
+                get filteredFranceTable() {
+                    if (!this.tableFilter) return this.franceTable;
+                    return this.franceTable.filter(r => 
+                        r.orig.toString().includes(this.tableFilter) || 
+                        r.g10.toString().includes(this.tableFilter) ||
+                        r.lit.toLowerCase().includes(this.tableFilter.toLowerCase())
+                    );
+                }
+            }
+        }
+    </script>
+</body>
+</html>
